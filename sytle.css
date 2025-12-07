@@ -1,0 +1,69 @@
+:root {
+  --glow: rgba(0, 204, 255, 0.6);
+  --glow-strong: rgba(0, 204, 255, 1);
+  --text-color: #ffffff;
+  --bg-color: #0a0a0f;
+  --highlight-color: #ffcc00;
+}
+
+body {
+  font-family: 'Scheherazade New', 'Amiri', serif;
+  background: var(--bg-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 20px;
+  line-height: 2.2;
+  text-align: center;
+}
+
+.quran-container {
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.1);
+}
+
+.word {
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+  transition: 
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.3s ease,
+    text-shadow 0.3s ease;
+}
+
+.word:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.word.active {
+  color: var(--highlight-color);
+  background: rgba(255, 204, 0, 0.15);
+  transform: scale(1.25);
+  text-shadow: 0 0 12px var(--glow-strong);
+}
+
+.controls {
+  margin-top: 25px;
+}
+
+button {
+  background: #00c7ff;
+  color: black;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 18px;
+  margin: 5px;
+  transition: 0.2s ease-in-out;
+}
+
+button:hover {
+  background: #00e1ff;
+  transform: scale(1.05);
+}

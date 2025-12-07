@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Website Baca Tulis Al-Qur'an - Word Sync (Glow + Zoom)</title>
+  <style>
+    :root{
+      --glow: rgba(0,170,255,0.18);
+      --accent: #00ffcc;
+      --text-indo: #bff7ea;
+    }
+    body {
+      font-family: 'Scheherazade New', 'Amiri', serif;
+      background: url('R.jpeg') no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 { font-size: 2.0em; color: var(--accent); margin-bottom: 8px; text-shadow: 2px 2px 4px #000; }
+    select, textarea, button { margin: 8px; padding: 10px; font-size: 1em; border-radius: 8px; border: none; }
+    textarea {
+      width: 80%; height: 120px; direction: rtl; text-align: right; font-size: 1.2em;
+      background: rgba(0,0,0,0.6); color: #fff; border: 2px solid var(--accent); border-radius: 10px;
+    }
+    .controls { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; align-items:center; }
+    #ayatDiv {
+      margin-top: 18px; padding: 18px; background: rgba(0,0,0,0.6); border-radius: 14px; width: 90%;
+      margin-left: auto; margin-right: auto; text-align: right; max-height: 55vh; overflow-y: auto;
+    }
+    .ayah-block { padding: 10px; border-radius: 8px; transition: background 0.2s, box-shadow 0.2s; margin-bottom: 6px; }
+    .ayah-header { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+    .arabic { font-size: 1.6em; line-height: 1.6; direction: rtl; text-align: right; margin-bottom: 6px; }
+    .arabic .word { display:inline-block; padding: 2px 4px; margin: 0 2px; transition: transform .12s ease, box-shadow .12s ease; border-radius:6px; }
+    .indo { font-size: 1.05em; color: var(--text-indo); direction: ltr; text-align: left; margin-top:6px; }
+    /* Active word: glow + enlarge */
+    .word.active {
+      background: linear-gradient(90deg, rgba(0,170,255,0.06), rgba(0,170,255,0.10));
+      box-shadow: 0 8px 28px rgba(0,170,255,0.14);
+      transform: scale(1.18);
+      color: white;
+      border: 1px solid rgba(0,170,255,0.22);
+    }
+    .ayah-block.active {
+      background: rgba(0,170,255,0.03);
+      border: 1px solid rgba(0,170,255,0.08);
+    }
+    footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--accent); font-size: 0.95em; color: var(--accent); font-family: 'Poppins', sans-serif; letter-spacing: 1px; text-shadow: 1px 1px 2px #000; }
+    .overlay { background: rgba(0,0,0,0.45); padding: 18px; border-radius: 16px; display:inline-block; width:100%; max-width:1100px; }
+    .note { font-size:0.9em; color:#c7fff0; margin-top:6px; }
+    /* small screens */
+    @media (max-width:600px){
+      .arabic{ font-size:1.3em; }
+      .word.active{ transform: scale(1.12); }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <h1>📖 Website Baca & Tulis Al-Qur'an</h1>
+    <p>Pilih surat — kata akan <strong>menyala + membesar</strong> sesuai audio (mode D).</p>
+
+    <div class="controls">
+      <select id="surahSelect"></select>
+      <button id="playBtn">▶ Putar</button>
+      <button id="pauseBtn">⏸ Jeda</button>
+      <button id="stopBtn">⏹ Stop</button>
+      <label style="color:#bff7ea; margin-left:6px;">Reciter: <strong>ar.alafasy (128kbps)</strong></label>
+    </div>
+
+    <audio id="quranAudio" controls style="width:90%; margin-top:10px;"></audio>
+    <div class="note">Status: <span id="status">menunggu...</span></div>
+
+    <h3>📜 Ayat & Terjemahan</h3>
+    <div id="ayatDiv" aria-live="polite"></div>
+
+    <h3 style="margin-top:12px;">✍ Area Tulis Ayat</h3>
+    <textarea placeholder="Tulis ayat atau latihan menulis huruf Arab..."></textarea>
+
+    <footer>🌙 Project by <strong>JASWA ARIANSYA</strong></footer>
+  </div>
+
+  <script>
+    const surahSelect = document.getElementById("surahSelect");
+    const quranAudio = document.getElementById("quranAudio");
+    const ayatDiv = document.getElementById("ayatDiv");
+    const statusSpan = document.getElementById("status");
+    const playBtn = document.getElementById("playBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const stopBtn = document.getElementById("stopBtn");
+
+    const surahList = [
+      "Al-Fatihah","Al-Baqarah","Ali 'Imran","An-Nisa'","Al-Ma'idah","Al-An'am","Al-A'raf","Al-Anfal",
+      "At-Taubah","Yunus","Hud","Yusuf","Ar-Ra'd","Ibrahim","Al-Hijr","An-Nahl","Al-Isra",
+      "Al-Kahf","Maryam","Ta Ha","Al-Anbiya","Al-Hajj","Al-Mu'minun","An-Nur","Al-Furqan",
+      "Ash-Shu'ara","An-Naml","Al-Qasas","Al-Ankabut","Ar-Rum","Luqman","As-Sajda","Al-Ahzab",
+      "Saba'","Fatir","Ya Sin","As-Saffat","Sad","Az-Zumar","Ghafir","Fussilat","Ash-Shura",
+      "Az-Zukhruf","Ad-Dukhan","Al-Jathiya","Al-Ahqaf","Muhammad","Al-Fath","Al-Hujurat","Qaf",
+      "Adh-Dhariyat","At-Tur","An-Najm","Al-Qamar","Ar-Rahman","Al-Waqi'ah","Al-Hadid","Al-Mujadila",
+      "Al-Hashr","Al-Mumtahanah","As-Saff","Al-Jumu'ah","Al-Munafiqun","At-Taghabun","At-Talaq",
+      "At-Tahrim","Al-Mulk","Al-Qalam","Al-Haqqah","Al-Ma'arij","Nuh","Al-Jinn","Al-Muzzammil",
+      "Al-Muddaththir","Al-Qiyamah","Al-Insan","Al-Mursalat","An-Naba","An-Nazi'at","'Abasa",
+      "At-Takwir","Al-Infitar","Al-Mutaffifin","Al-Insyiqaq","Al-Buruj","At-Tariq","Al-A'la",
+      "Al-Ghashiyah","Al-Fajr","Al-Balad","Ash-Shams","Al-Lail","Adh-Dhuha","Al-Insyirah","At-Tin",
+      "Al-'Alaq","Al-Qadr","Al-Bayyinah","Az-Zalzalah","Al-'Adiyat","Al-Qari'ah","At-Takathur",
+      "Al-'Asr","Al-Humazah","Al-Fil","Quraisy","Al-Ma'un","Al-Kausar","Al-Kafirun","An-Nasr",
+      "Al-Lahab","Al-Ikhlas","Al-Falaq","An-Nas"
+    ];
+
+    // populate dropdown
+    surahList.forEach((s,i)=> {
+      const opt = document.createElement('option');
+      opt.value = i+1;
+      opt.textContent = (i+1) + ". " + s;
+      surahSelect.appendChild(opt);
+    });
+
+    // Data structures:
+    // versesData: [{verse_number, words: [{text, start, end, index}], translation}]
+    let versesData = [];
+    let active = {verse: null, wordIndex: null};
+
+    // helper: safe fetch JSON
+    async function fetchJson(url){
+      try {
+        const r = await fetch(url);
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return await r.json();
+      } catch(e) {
+        console.warn('fetch failed', url, e);
+        return null;
+      }
+    }
+
+    // load verses and try to get per-word timings from quran.com
+    async function loadVerses(nomor) {
+      ayatDiv.innerHTML = '';
+      versesData = [];
+      active = {verse: null, wordIndex: null};
+      statusSpan.textContent = 'memuat ayat...';
+
+      // 1) get ayat (uthmani) & basic data from alquran.cloud (stable)
+      const surahJson = await fetchJson(`https://api.alquran.cloud/v1/surah/${nomor}`);
+      if(!surahJson || !surahJson.data) {
+        statusSpan.textContent = 'Gagal ambil ayat (alquran.cloud).';
+        return;
+      }
+      const ayahs = surahJson.data.ayahs;
+      // 2) try to get Indonesian translations in batch
+      let translations = null;
+      const transJson = await fetchJson(`https://api.alquran.cloud/v1/surah/${nomor}/editions/quran-uthmani,id.indonesian`);
+      if(transJson && Array.isArray(transJson.data)) {
+        const tran = transJson.data.find(e => e.edition && e.edition.language === 'id');
+        if(tran && tran.ayahs) translations = tran.ayahs;
+      }
+
+      // 3) Try to get verse+word timings from quran.com API v4
+      // Note: endpoint: /verses/by_chapter/{chapter}?recitation=7&language=id&fields=... (may be blocked by CORS)
+      statusSpan.textContent = 'mencari timestamp per-kata dari quran.com (jika tersedia)...';
+      const qcomUrl = `https://api.quran.com/api/v4/verses/by_chapter/${nomor}?recitation=7&language=id&per_page=500`;
+      const qcom = await fetchJson(qcomUrl);
+
+      // build versesData by combining sources. We'll attempt to extract per-word timings from qcom (if present)
+      for(const a of ayahs){
+        const vnum = a.numberInSurah;
+        // base verse object
+        const verseObj = {
+          verse_number: vnum,
+          arabic: a.text,
+          words: [], // will fill words: {text, start, end, idx}
+          translation: translations && translations[vnum-1] ? translations[vnum-1].text : ''
+        };
+        // try to find from qcom
+        let qcomVerse = null;
+        if(qcom && qcom.verses && Array.isArray(qcom.verses)){
+          qcomVerse = qcom.verses.find(v => v.verse_number === vnum);
+        }
+        // If qcomVerse has words with timings, use them
+        if(qcomVerse && qcomVerse.words && qcomVerse.words.length){
+          // qcom words may have audio_timing fields
+          qcomVerse.words.forEach((w, idx) => {
+            verseObj.words.push({
+              text: w.text_uthmani || w.text,
+              start: (w.audio && w.audio.start_time) ? Number(w.audio.start_time) : null,
+              end: (w.audio && w.audio.end_time) ? Number(w.audio.end_time) : null,
+              idx: idx
+            });
+          });
+        } else {
+          // fallback split the verse Arabic text into words by space & punctuation
+          // This is less exact for Arabic tokenization but workable as a fallback.
+          const splitWords = a.text.replace(/\s+/g,' ').trim().split(' ');
+          splitWords.forEach((w, idx) => {
+            verseObj.words.push({ text: w, start: null, end: null, idx });
+          });
+        }
+        versesData.push(verseObj);
+      }
+
+      // render DOM
+      versesData.forEach(v => {
+        const block = document.createElement('div');
+        block.className = 'ayah-block';
+        block.id = `verse-${v.verse_number}`;
+
+        // header with verse number
+        const header = document.createElement('div');
+        header.className = 'ayah-header';
+        header.innerHTML = `<div style="direction:rtl">سورة ${surahSelect.options[surahSelect.selectedIndex].text}</div>
+                            <div style="direction:ltr; font-size:0.95em; color:var(--text-indo)">Ayat ${v.verse_number}</div>`;
+        block.appendChild(header);
+
+        // Arabic line with words wrapped
+        const arabicDiv = document.createElement('div');
+        arabicDiv.className = 'arabic';
+        // create span per word
+        v.words.forEach(w => {
+          const sp = document.createElement('span');
+          sp.className = 'word';
+          sp.dataset.verse = v.verse_number;
+          sp.dataset.widx = w.idx;
+          sp.textContent = w.text + ' ';
+          arabicDiv.appendChild(sp);
+        });
+        block.appendChild(arabicDiv);
+
+        // translation
+        const indoDiv = document.createElement('div');
+        indoDiv.className = 'indo';
+        indoDiv.id = `trans-${v.verse_number}`;
+        indoDiv.textContent = v.translation || '';
+        block.appendChild(indoDiv);
+
+        ayatDiv.appendChild(block);
+      });
+
+      statusSpan.textContent = 'Ayat ter-load. Menunggu audio atau play.';
+    }
+
+    // compute per-word timings fallback if verse-level timing exists or only audio duration known
+    function computeFallbackWordTimings(verse, verseStart, verseEnd){
+      // verse.words is array of words; if words already have start - skip
+      const words = verse.words;
+      const n = words.length;
+      const vstart = (verseStart != null) ? verseStart : 0;
+      const vend = (verseEnd != null) ? verseEnd : (vstart + 1.0);
+      const total = Math.max(0.001, vend - vstart);
+      const per = total / n;
+      for(let i=0;i<n;i++){
+        words[i].start = vstart + i * per;
+        words[i].end = vstart + (i+1)*per;
+      }
+    }
+
+    // main sync logic: on timeupdate, find current verse & word and highlight
+    function onTimeUpdate(){
+      const t = quranAudio.currentTime;
+      if(!versesData.length) return;
+
+      // find verse index that contains this time (if any) — we might not have verse start/end, so we fallback:
+      // Strategy:
+      // 1) if any word has start/end defined, search among them (preferred)
+      // 2) else use fallback: compute approximate verse schedule by dividing audio duration proportionally to verse counts (less accurate)
+      let found = {verseNum: null, wordIdx: null};
+
+      // try 1: check words with defined start/end (global search)
+      for(const v of versesData){
+        for(const w of v.words){
+          if(w.start!=null && w.end!=null){
+            if(t + 0.0005 >= w.start && t <= w.end + 0.0005){
+              found.verseNum = v.verse_number;
+              found.wordIdx = w.idx;
+              break;
+            }
+          }
+        }
+        if(found.verseNum) break;
+      }
+
+      // try 2: if not found, try to compute per-verse windows using pre-known verse timings from qcom (if present)
+      if(!found.verseNum){
+        // attempt to construct approximate verse schedule from words that have starts for each verse (min start)
+        const verseWindows = [];
+        for(const v of versesData){
+          const starts = v.words.map(w=>w.start).filter(x=>x!=null);
+          if(starts.length){
+            const minS = Math.min(...starts);
+            const maxE = Math.max(...v.words.map(w=>w.end||minS));
+            verseWindows.push({verse:v.verse_number, start:minS, end:maxE});
+          }
+        }
+        if(verseWindows.length){
+          // find verse whose window contains t
+          for(const w of verseWindows){
+            if(t + 0.0005 >= w.start && t <= w.end + 0.0005){
+              // compute which word by linear search using word starts if exist, otherwise fallback equal split
+              const verse = versesData.find(x=>x.verse_number===w.verse);
+              if(verse){
+                // if words have start values, pick that
+                const w2 = verse.words.find(x=> x.start != null && t + 0.0005 >= x.start && t <= (x.end||x.start+1));
+                if(w2) {
+                  found.verseNum = verse.verse_number;
+                  found.wordIdx = w2.idx;
+                } else {
+                  // fallback split
+                  computeFallbackWordTimings(verse, w.start, w.end);
+                  // recalc
+                  for(const wd of verse.words){
+                    if(t + 0.0005 >= wd.start && t <= wd.end + 0.0005){
+                      found.verseNum = verse.verse_number;
+                      found.wordIdx = wd.idx;
+                      break;
+                    }
+                  }
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // final fallback: divide whole audio into verses evenly (only if no other timing)
+      if(!found.verseNum){
+        const dur = quranAudio.duration || 0;
+        if(dur && !isNaN(dur)){
+          const versesCount = versesData.length;
+          const perVerse = dur / versesCount;
+          const idx = Math.min(versesCount-1, Math.floor(t / perVerse));
+          const verse = versesData[idx];
+          // compute per-word fallback
+          computeFallbackWordTimings(verse, idx*perVerse, (idx+1)*perVerse);
+          // find word
+          for(const wd of verse.words){
+            if(t + 0.0005 >= wd.start && t <= wd.end + 0.0005){
+              found.verseNum = verse.verse_number;
+              found.wordIdx = wd.idx;
+              break;
+            }
+          }
+        }
+      }
+
+      // apply highlight changes
+      if(found.verseNum !== null){
+        // clear previous active words
+        if(active.verse !== found.verseNum || active.wordIndex !== found.wordIdx){
+          // remove previous
+          if(active.verse != null){
+            const prevBlock = document.getElementById(`verse-${active.verse}`);
+            if(prevBlock) prevBlock.classList.remove('active');
+            // remove active class from previous word
+            const prevWord = document.querySelector(`.word[data-verse="${active.verse}"][data-widx="${active.wordIndex}"]`);
+            if(prevWord) prevWord.classList.remove('active');
+          }
+          // set new active
+          active.verse = found.verseNum;
+          active.wordIndex = found.wordIdx;
+          const curBlock = document.getElementById(`verse-${active.verse}`);
+          if(curBlock) curBlock.classList.add('active');
+          const curWord = document.querySelector(`.word[data-verse="${active.verse}"][data-widx="${active.wordIndex}"]`);
+          if(curWord) {
+            curWord.classList.add('active');
+            // scroll to keep visible
+            const container = ayatDiv;
+            const containerRect = container.getBoundingClientRect();
+            const curRect = curWord.getBoundingClientRect();
+            const offset = (curRect.top - containerRect.top) + container.scrollTop - (container.clientHeight/2) + (curWord.clientHeight/2);
+            container.scrollTo({ top: offset, behavior: 'smooth' });
+          }
+        }
+      }
+    }
+
+    // Controls
+    playBtn.addEventListener('click', async ()=> {
+      const nomor = surahSelect.value;
+      if(!nomor) return;
+      statusSpan.textContent = 'menyiapkan audio & data...';
+      quranAudio.src = `https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${nomor}.mp3`;
+      // load verses (text + try timings)
+      await loadVerses(nomor);
+
+      // after metadata, if words still don't have start, try to compute approximate timings per verse with quran.com verse timings if present
+      quranAudio.addEventListener('loadedmetadata', ()=> {
+        // attempt to assign verse-level timings using quran.com if available (we looked earlier)
+        // If no word-level starts exist for any word of a verse, we'll compute fallback using duration
+        // (this logic is inside onTimeUpdate as fallback)
+      }, {once:true});
+
+      quranAudio.removeEventListener('timeupdate', onTimeUpdate);
+      quranAudio.addEventListener('timeupdate', onTimeUpdate);
+      try {
+        await quranAudio.play();
+        statusSpan.textContent = 'Sedang diputar — highlight aktif (mode D).';
+      } catch(e){
+        statusSpan.textContent = 'Gagal memutar audio: ' + e;
+      }
+    });
+
+    pauseBtn.addEventListener('click', ()=> {
+      quranAudio.pause();
+      statusSpan.textContent = 'Dijeda.';
+    });
+
+    stopBtn.addEventListener('click', ()=> {
+      quranAudio.pause();
+      quranAudio.currentTime = 0;
+      // clear highlight
+      if(active.verse != null){
+        const prevBlock = document.getElementById(`verse-${active.verse}`);
+        if(prevBlock) prevBlock.classList.remove('active');
+        const prevWord = document.querySelector(`.word[data-verse="${active.verse}"][data-widx="${active.wordIndex}"]`);
+        if(prevWord) prevWord.classList.remove('active');
+        active = {verse:null, wordIndex:null};
+      }
+      statusSpan.textContent = 'Dihentikan.';
+    });
+
+    surahSelect.addEventListener('change', async ()=> {
+      await loadVerses(surahSelect.value);
+      // clear highlight
+      active = {verse:null, wordIndex:null};
+      quranAudio.pause();
+      quranAudio.currentTime = 0;
+    });
+
+    quranAudio.addEventListener('ended', ()=> {
+      statusSpan.textContent = 'Selesai diputar.';
+    });
+
+    // init
+    (async ()=> {
+      surahSelect.value = 1;
+      await loadVerses(1);
+    })();
+
+  </script>
+</body>
+</html>
